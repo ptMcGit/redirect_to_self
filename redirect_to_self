@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# catches stream of input to temp files, backs up file(s) $@, and cp's input to file(s) $@
+
+# perform an operation on a file and save to same file
+
+help_message () {
+    cat <<EOF
+Redirect output from stream where input is from file $1 to file $1.
+
+        -b      Backup the file.
+        -h      Help message.
+
+[cmd] file_X | cmd | redirect_to_self file_X
+
+EOF
+return
+}
+
+[ "$#" -lt 1 ] && {
+    help_message
+    exit 1
+}
+
+temp_file=$(mktemp)
+cat > $temp_file
+
+while getopts :bh option; do
+    case "$option" in
+        \?)
+            echo "$(basename $0): Invalid option provided." >&2
+            help_message
+            exit 2
+            ;;
+        b)
+            backup_file=true
+            ;;
+    esac
+done
+shift $((OPTIND - 1))
+OPTIND=0
+
+for filename in "$@"; do
+    [ -r "$filename" ] || {
+        echo "Unable to validate $filename. Exiting." >&2
+        exit 2
+    }
+done
+
+for filename in "$@"; do
+    if ${backup_file:-false}; then
+        mktemp_template="$(basename $0)-${filename}-$(date +%d%m%y_%H%M%S).XXXXXXXX.bak"
+        backup_file="$(mktemp --tmpdir=/tmp/ "$mktemp_template")"
+        cp "$filename" "$backup_file"
+        echo "Backup saved at ${backup_file}" >&2
+    fi
+    cp $temp_file "$filename"
+done
+
+
+exit
